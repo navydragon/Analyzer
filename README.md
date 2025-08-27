@@ -1,2 +1,1 @@
-# Analyzer
-Analyse voice and texts
+See project files.
