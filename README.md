@@ -25,18 +25,33 @@
 ## 🧭 Структура проекта
 
 ```
-├─ 1_🎯_Голосовой_анализ.py
-├─ 2_📝_Семантика_текста.py
-├─ Home.py
-├─ alignment.py
-├─ audio_processor.py
-├─ db_connector.py
-├─ evaluator.py
-├─ grammar_analyzer.py
-├─ grammar_nn.py
-├─ pronunciation_analyzer.py
-├─ text.py
-├─ thresholds.py
+Analyzer/
+├── analyzer/
+│   ├── __init__.py
+│   └── pronunciation_analyzer.py
+├── configs/
+│   ├── __init__.py
+│   └── thresholds.py
+├── pages/
+│   ├── __init__.py
+│   ├── 1_voice_analysis.py
+│   └── 2_text_semantics.py
+├── semantic/
+│   ├── __init__.py
+│   ├── evaluator.py
+│   ├── grammar_analyzer.py
+│   └── grammar_nn.py
+├── utils/
+│   ├── __init__.py
+│   └── text.py
+├── .gitignore
+├── db_connector.py
+├── ffmpeg
+├── Home.py
+├── README.md
+├── requirements.txt
+├── ruff.toml
+└── text.py
 ```
 
 **Файлы и назначение:**
@@ -121,38 +136,6 @@ print(final)
 
 Пороговые значения централизованы в `thresholds.py`.
 
----
-
-## 🧩 Архитектура
-
-```mermaid
-Analyzer/
-├── analyzer/
-│   ├── __init__.py
-│   └── pronunciation_analyzer.py
-├── configs/
-│   ├── __init__.py
-│   └── thresholds.py
-├── pages/
-│   ├── __init__.py
-│   ├── 1_voice_analysis.py
-│   └── 2_text_semantics.py
-├── semantic/
-│   ├── __init__.py
-│   ├── evaluator.py
-│   ├── grammar_analyzer.py
-│   └── grammar_nn.py
-├── utils/
-│   ├── __init__.py
-│   └── text.py
-├── .gitignore
-├── db_connector.py
-├── ffmpeg
-├── Home.py
-├── README.md
-├── requirements.txt
-├── ruff.toml
-└── text.py
 
 ```
 
