@@ -137,8 +137,6 @@ print(final)
 Пороговые значения централизованы в `thresholds.py`.
 
 
-```
-
 ---
 
 <p align="center">
