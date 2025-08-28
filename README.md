@@ -1,7 +1,7 @@
 # Analyzer — анализ речи и текста 🧠🎙️
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Python-3.9%2B-blue" alt="Python 3.9+">
+  <img src="https://img.shields.io/badge/Python-3.11%2B-blue" alt="Python 3.11+">
   <img src="https://img.shields.io/badge/Type-Audio%20%26%20NLP-8A2BE2" alt="Type">
   <img src="https://img.shields.io/badge/Platform-macOS%20|%20Linux%20|%20Windows-lightgrey" alt="Platform">
   <img src="https://img.shields.io/badge/Status-Active-success" alt="Status">
