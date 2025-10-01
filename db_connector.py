@@ -1,16 +1,20 @@
 from __future__ import annotations
+
 import json
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
+
 _DB = Path('.local_results.json')
+
 
 @dataclass
 class SavedRun:
     ts: float
     kind: str
     payload: dict[str, Any]
+
 
 def save_result(kind: str, payload: dict[str, Any]) -> None:
     items: list[dict[str, Any]] = []

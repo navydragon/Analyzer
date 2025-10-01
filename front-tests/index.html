@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="ru">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Analyzer Front Test</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <style>
+        body {
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+            background: #f8fafc;
+        }
+
+        .lesson-hero {
+            background: linear-gradient(135deg, #0d6efd 0%, #6f42c1 100%);
+            color: white;
+            padding: 2rem 0;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 2px 8px rgba(13, 110, 253, 0.25);
+        }
+
+        .score {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin: 0.5rem 0 1rem;
+        }
+
+        #log {
+            white-space: pre-wrap;
+            background: #0b1220;
+            color: #d2ffd2;
+            padding: 12px 14px;
+            border-radius: 0.5rem;
+        }
+
+        .tag {
+            display: inline-block;
+            padding: 0.125rem 0.5rem;
+            border-radius: 10px;
+            background: #eef2ff;
+            color: #3730a3;
+            font-size: 0.75rem;
+            margin-right: 0.25rem;
+        }
+
+        .diff {
+            margin-top: 0.5rem;
+            padding: 0.75rem;
+            border: 1px dashed #dee2e6;
+            border-radius: 0.5rem;
+            background: #fafafa;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="#">Analyzer — Front Test</a>
+        </div>
+    </nav> -->
+
+    <section class="lesson-hero">
+        <div class="container">
+            <h1 class="h3 mb-0">Задание №1</h1>
+            <div class="text-white-50">Задание на произношение</div>
+        </div>
+    </section>
+
+    <main class="container mb-5">
+        <div class="row g-4">
+            <div class="col-12 col-lg-7">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-light"><strong>Задание</strong></div>
+                    <div class="card-body">
+                        <ul class="nav nav-tabs" id="assignmentTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="ru-tab" data-bs-toggle="tab"
+                                    data-bs-target="#tab-ru" type="button" role="tab" aria-controls="tab-ru"
+                                    aria-selected="true">Русский</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="en-tab" data-bs-toggle="tab" data-bs-target="#tab-en"
+                                    type="button" role="tab" aria-controls="tab-en"
+                                    aria-selected="false">English</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="zh-tab" data-bs-toggle="tab" data-bs-target="#tab-zh"
+                                    type="button" role="tab" aria-controls="tab-zh" aria-selected="false">中文</button>
+                            </li>
+                        </ul>
+                        <div class="tab-content pt-3" id="assignmentTabsContent">
+                            <div class="tab-pane fade show active" id="tab-ru" role="tabpanel" aria-labelledby="ru-tab">
+                                <p class="mb-2">Прочитайте вслух абзац ниже, запишите свою речь и отправьте в систему
+                                    для оценки.</p>
+                                <ul class="mb-0">
+                                    <li>Нажмите <span class="badge bg-danger">Начать запись</span>, затем прочитайте
+                                        текст.</li>
+                                    <li>Остановите запись и при необходимости прослушайте результат.</li>
+                                    <li>Убедитесь, что выбран нужный язык и модель.</li>
+                                    <li>Нажмите <span class="badge bg-primary">Отправить</span> и изучите метрики и
+                                        несовпадения.</li>
+                                </ul>
+                            </div>
+                            <div class="tab-pane fade" id="tab-en" role="tabpanel" aria-labelledby="en-tab">
+                                <p class="mb-2">Read the paragraph below aloud, record your speech, and submit it for
+                                    evaluation.</p>
+                                <ul class="mb-0">
+                                    <li>Click <span class="badge bg-danger">Start Recording</span>, then read the text.
+                                    </li>
+                                    <li>Stop the recording and listen back if needed.</li>
+                                    <li>Make sure the correct language and model are selected.</li>
+                                    <li>Click <span class="badge bg-primary">Submit</span> and review the metrics and
+                                        mismatches.</li>
+                                </ul>
+                            </div>
+                            <div class="tab-pane fade" id="tab-zh" role="tabpanel" aria-labelledby="zh-tab">
+                                <p class="mb-2">请大声朗读下面的段落，录制你的语音，然后提交以获得评估。</p>
+                                <ul class="mb-0">
+                                    <li>点击 <span class="badge bg-danger">开始录音</span>，然后朗读文本。</li>
+                                    <li>停止录音，如有需要可回放。</li>
+                                    <li>确认选择了正确的语言和模型。</li>
+                                    <li>点击 <span class="badge bg-primary">提交</span>，查看指标与不匹配之处。</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                            <button id="btnRec" class="btn btn-danger">⏺️ Начать запись</button>
+                            <button id="btnStop" class="btn btn-outline-secondary" disabled>⏹️ Остановить</button>
+                            <span id="recHint" class="ms-2 small text-muted"></span>
+                        </div>
+                        <audio id="player" controls class="w-100 mb-3"></audio>
+
+                        <div class="mb-3">
+                            <label class="form-label">Текст для чтения</label>
+                            <textarea id="reference" class="form-control"
+                                rows="6">Когда мы говорим о современных технологиях, важно не только пользоваться ими, но и понимать, как они устроены и зачем они нужны. Попробуйте прочитать этот абзац ровно, чётко и без спешки, делая паузы в естественных местах. Сфокусируйтесь на произношении и темпе речи, чтобы добиться наилучшего качества распознавания.</textarea>
+                            <!-- <div class="form-text">Можно заменить текст на свой, но для задания используйте предложенный
+                                абзац.</div> -->
+                        </div>
+
+                        <div class="row g-3 align-items-end">
+                            <!-- <div class="col-12 col-md-4">
+                                <label class="form-label">Модель</label>
+                                <select id="model" class="form-select">
+                                    <option value="base" selected>base</option>
+                                    <option value="small">small</option>
+                                    <option value="medium">medium</option>
+                                    <option value="large">large</option>
+                                </select>
+                            </div>
+                            <div class="col-6 col-md-2">
+                                <label class="form-label">Язык</label>
+                                <input id="lang" class="form-control" value="ru" />
+                            </div>
+                            <div class="col-12 col-md-4">
+                                <label class="form-label">API URL</label>
+                                <input id="api" class="form-control" value="http://127.0.0.1:8001" />
+                            </div> -->
+                            <div class="col-12 col-md-2 d-grid">
+                                <button id="btnSend" class="btn btn-primary w-100">🚀 Отправить</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12 col-lg-5">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-light"><strong>Ответ</strong></div>
+                    <div id="out" class="card-body"></div>
+                </div>
+
+                <div class="card shadow-sm">
+                    <div class="card-header bg-light"><strong>Лог</strong></div>
+                    <div class="card-body">
+                        <div id="log" class="small"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Bootstrap JS (для некоторых компонентов, Safe без дополнительных зависимостей) -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
+        crossorigin="anonymous"></script>
+
+    <script>
+        const btnRec = document.getElementById('btnRec');
+        const btnStop = document.getElementById('btnStop');
+        const player = document.getElementById('player');
+        const out = document.getElementById('out');
+        const log = document.getElementById('log');
+        const btnSend = document.getElementById('btnSend');
+        const recHint = document.getElementById('recHint');
+
+        let mediaRecorder;
+        let recordedChunks = [];
+        let lastBlob = null;
+
+        function logln(msg) {
+            log.textContent += msg + '\n';
+        }
+
+        async function startRecording() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                recordedChunks = [];
+                const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm';
+                mediaRecorder = new MediaRecorder(stream, { mimeType: mime, bitsPerSecond: 192000 });
+                mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); };
+                mediaRecorder.onstop = () => {
+                    lastBlob = new Blob(recordedChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+                    player.src = URL.createObjectURL(lastBlob);
+                    logln(`Записано: ${Math.round(lastBlob.size / 1024)} KB, mime=${lastBlob.type}`);
+                };
+                mediaRecorder.start();
+                btnRec.disabled = true;
+                btnStop.disabled = false;
+                logln('Запись начата');
+            } catch (e) {
+                logln('Ошибка доступа к микрофону: ' + e);
+            }
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+                mediaRecorder.stream.getTracks().forEach(t => t.stop());
+                btnRec.disabled = false;
+                btnStop.disabled = true;
+                logln('Запись остановлена');
+            }
+        }
+
+        function setLoading(loading) {
+            btnSend.disabled = loading;
+            btnRec.disabled = loading || btnRec.disabled;
+            recHint.textContent = loading ? '⏳ Обработка...' : '';
+        }
+
+        function fmt(n, digits = 1) {
+            if (n === null || n === undefined || isNaN(Number(n))) return '';
+            return Number(n).toFixed(digits);
+        }
+
+        function renderAlignment(alignment) {
+            if (!alignment || !Array.isArray(alignment.alignment)) return '';
+            const rows = alignment.alignment
+                .filter(r => (r.ref !== r.hyp) || (typeof r.sim === 'number' && r.sim < 0.9))
+                .map(r => `<tr><td>${r.ref ?? ''}</td><td>${r.hyp ?? ''}</td><td>${fmt(r.sim)}</td></tr>`)
+                .join('');
+            const table = rows ? `
+                <h4 class="h6">Смысловые несовпадения (по словам)</h4>
+                <table class="table table-sm table-striped align-middle">
+                  <thead class="table-light"><tr><th>ref</th><th>hyp</th><th>sim</th></tr></thead>
+                  <tbody>${rows}</tbody>
+                </table>
+            ` : '<div class="text-muted">Несовпадений не найдено</div>';
+            const diff = alignment.diff_html ? `<h4>Подсветка расхождений</h4><div class="diff">${alignment.diff_html}</div>` : '';
+            return table + diff;
+        }
+
+        function renderResult(data) {
+            const d = data.details || {};
+            const tempo = d.tempo || {};
+            const metrics = `
+                <div class="score">Итоговый балл: ${fmt(data.score)}</div>
+                <div class="metrics">
+                  <div><b>Лексическая точность</b>: ${fmt(d.lexical_accuracy)}</div>
+                  <div><b>Надёжность распознавания</b>: ${fmt(d.recognition_reliability)}</div>
+                  <div><b>Акустическая чистота</b>: ${fmt(d.acoustic_cleanliness)}</div>
+                  <div><b>Темп (WPM)</b>: ${fmt(tempo.wpm)}</div>
+                  <div><b>Темп — балл</b>: ${fmt(tempo.score)}</div>
+                  <div><b>Плавность (флюэнси)</b>: ${fmt(d.fluency)}</div>
+                </div>
+            `;
+            const recognized = `<div style="margin:8px 0"><span class="tag">Распознанный текст</span> ${data.recognized || ''}</div>`;
+            const alignmentHtml = d.alignment ? renderAlignment(d.alignment) : '';
+            out.innerHTML = metrics + recognized + alignmentHtml;
+        }
+
+        async function sendToApi() {
+            try {
+                setLoading(true);
+                const apiEl = document.getElementById('api');
+                const modelEl = document.getElementById('model');
+                const langEl = document.getElementById('lang');
+                const reference = document.getElementById('reference').value;
+
+                const api = (apiEl && typeof apiEl.value === 'string' && apiEl.value.trim()) ? apiEl.value.trim() : 'http://127.0.0.1:8001';
+                const model = (modelEl && modelEl.value) ? modelEl.value : 'base';
+                const lang = (langEl && langEl.value) ? langEl.value : 'ru';
+
+                if (!lastBlob) {
+                    logln('Нет записанного аудио. Сначала сделайте запись.');
+                    return;
+                }
+                const ext = (lastBlob.type.includes('webm')) ? 'webm' : 'wav';
+                const form = new FormData();
+                form.append('file', lastBlob, `record.${ext}`);
+                form.append('reference', reference);
+                form.append('model_size', model);
+                form.append('language', lang);
+                form.append('temperature', String(0.0));
+                form.append('beam_size', String(8));
+
+                const res = await fetch(`${api}/v1/voice/analyze`, { method: 'POST', body: form });
+                const text = await res.text();
+                let data;
+                try { data = JSON.parse(text); } catch (_) { data = { raw: text }; }
+
+                if (!res.ok) {
+                    out.innerHTML = `<pre style="color:#b00020">HTTP ${res.status}\n${text}</pre>`;
+                    return;
+                }
+                renderResult(data);
+            } catch (e) {
+                out.innerHTML = `<pre style="color:#b00020">Ошибка: ${e}</pre>`;
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        btnRec.addEventListener('click', startRecording);
+        btnStop.addEventListener('click', stopRecording);
+        btnSend.addEventListener('click', sendToApi);
+    </script>
+</body>
+
+</html>

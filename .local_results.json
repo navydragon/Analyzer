@@ -1,0 +1,267 @@
+[
+  {
+    "ts": 1758533852.2520702,
+    "kind": "voice",
+    "payload": {
+      "recognized": "Маммаילו пора",
+      "score": 22.817707030905673,
+      "details": {
+        "lexical_accuracy": 15.0,
+        "recognition_reliability": 15.6,
+        "acoustic_cleanliness": 51.1,
+        "tempo": {
+          "wpm": 57.7,
+          "score": 0.0
+        },
+        "fluency": 60.0,
+        "weights": {
+          "lexical_accuracy": 0.35,
+          "recognition_reliability": 0.25,
+          "acoustic_cleanliness": 0.15,
+          "tempo": 0.15,
+          "fluency": 0.1
+        },
+        "raw": {
+          "rms": 0.08148244023323059,
+          "zcr": 0.16914506392045456,
+          "centroid": 2804.186539704834,
+          "centroid_norm": 0.0584
+        },
+        "alignment": {
+          "alignment": [
+            {
+              "ref": "Мама",
+              "hyp": "Маммаילו",
+              "sim": 0.5
+            },
+            {
+              "ref": "мыла",
+              "hyp": "пора",
+              "sim": 0.25
+            },
+            {
+              "ref": "раму",
+              "hyp": "",
+              "sim": 0.0
+            }
+          ],
+          "wer": 1.0,
+          "char_sim": 0.375,
+          "diff_html": "<span title='эталон: Мама; похожесть: 0.50' style='background:#fff3cd;border-bottom:1px dotted #f0ad4e'>Маммаילו</span> <span title='эталон: мыла; похожесть: 0.25' style='background:#fff3cd;border-bottom:1px dotted #f0ad4e'>пора</span> <span title='удалено; эталон: раму' style='background:#ffe0e0;text-decoration:line-through'>раму</span>"
+        }
+      }
+    }
+  },
+  {
+    "ts": 1758549174.3101408,
+    "kind": "voice",
+    "payload": {
+      "recognized": "Мамогу иу Араму.",
+      "score": 43.10707448252852,
+      "details": {
+        "lexical_accuracy": 15.6,
+        "recognition_reliability": 19.5,
+        "acoustic_cleanliness": 71.2,
+        "tempo": {
+          "wpm": 122.3,
+          "score": 80.7
+        },
+        "fluency": 100.0,
+        "weights": {
+          "lexical_accuracy": 0.35,
+          "recognition_reliability": 0.25,
+          "acoustic_cleanliness": 0.15,
+          "tempo": 0.15,
+          "fluency": 0.1
+        },
+        "raw": {
+          "rms": 0.0430925115942955,
+          "zcr": 0.09113008232526881,
+          "centroid": 2845.556030693335,
+          "centroid_norm": 0.0593
+        },
+        "alignment": {
+          "alignment": [
+            {
+              "ref": "Мама",
+              "hyp": "Мамогу",
+              "sim": 0.5
+            },
+            {
+              "ref": "мыла",
+              "hyp": "иу",
+              "sim": 0.0
+            },
+            {
+              "ref": "раму",
+              "hyp": "Араму.",
+              "sim": 0.667
+            }
+          ],
+          "wer": 1.0,
+          "char_sim": 0.3888888888888889,
+          "diff_html": "<span title='эталон: Мама; похожесть: 0.50' style='background:#fff3cd;border-bottom:1px dotted #f0ad4e'>Мамогу</span> <span title='эталон: мыла; похожесть: 0.00' style='background:#fff3cd;border-bottom:1px dotted #f0ad4e'>иу</span> <span title='эталон: раму; похожесть: 0.67' style='background:#fff3cd;border-bottom:1px dotted #f0ad4e'>Араму.</span>"
+        }
+      }
+    }
+  },
+  {
+    "ts": 1758549814.8855548,
+    "kind": "voice",
+    "payload": {
+      "recognized": "мамок в hilarом",
+      "score": 43.23202676107647,
+      "details": {
+        "lexical_accuracy": 8.0,
+        "recognition_reliability": 19.0,
+        "acoustic_cleanliness": 71.2,
+        "tempo": {
+          "wpm": 155.2,
+          "score": 100.0
+        },
+        "fluency": 100.0,
+        "weights": {
+          "lexical_accuracy": 0.35,
+          "recognition_reliability": 0.25,
+          "acoustic_cleanliness": 0.15,
+          "tempo": 0.15,
+          "fluency": 0.1
+        },
+        "raw": {
+          "rms": 0.0430925115942955,
+          "zcr": 0.09113008232526881,
+          "centroid": 2845.556030693335,
+          "centroid_norm": 0.0593
+        },
+        "alignment": {
+          "alignment": [
+            {
+              "ref": "Мама",
+              "hyp": "мамок",
+              "sim": 0.6
+            },
+            {
+              "ref": "мыла",
+              "hyp": "в",
+              "sim": 0.0
+            },
+            {
+              "ref": "раму",
+              "hyp": "hilarом",
+              "sim": 0.0
+            }
+          ],
+          "wer": 1.0,
+          "char_sim": 0.19999999999999998,
+          "diff_html": "<span title='эталон: Мама; похожесть: 0.60' style='background:#fff3cd;border-bottom:1px dotted #f0ad4e'>мамок</span> <span title='эталон: мыла; похожесть: 0.00' style='background:#fff3cd;border-bottom:1px dotted #f0ad4e'>в</span> <span title='эталон: раму; похожесть: 0.00' style='background:#fff3cd;border-bottom:1px dotted #f0ad4e'>hilarом</span>"
+        }
+      }
+    }
+  },
+  {
+    "ts": 1758549843.3067236,
+    "kind": "voice",
+    "payload": {
+      "recognized": "Мама 의� hurting.",
+      "score": 50.57893466897858,
+      "details": {
+        "lexical_accuracy": 33.3,
+        "recognition_reliability": 12.9,
+        "acoustic_cleanliness": 71.2,
+        "tempo": {
+          "wpm": 152.5,
+          "score": 100.0
+        },
+        "fluency": 100.0,
+        "weights": {
+          "lexical_accuracy": 0.35,
+          "recognition_reliability": 0.25,
+          "acoustic_cleanliness": 0.15,
+          "tempo": 0.15,
+          "fluency": 0.1
+        },
+        "raw": {
+          "rms": 0.0430925115942955,
+          "zcr": 0.09113008232526881,
+          "centroid": 2845.556030693335,
+          "centroid_norm": 0.0593
+        },
+        "alignment": {
+          "alignment": [
+            {
+              "ref": "Мама",
+              "hyp": "Мама",
+              "sim": 1.0
+            },
+            {
+              "ref": "мыла",
+              "hyp": "의�",
+              "sim": 0.0
+            },
+            {
+              "ref": "раму",
+              "hyp": "hurting.",
+              "sim": 0.0
+            }
+          ],
+          "wer": 0.6666666666666666,
+          "char_sim": 0.3333333333333333,
+          "diff_html": "<span style='color:#2e7d32'>Мама</span> <span title='эталон: мыла; похожесть: 0.00' style='background:#fff3cd;border-bottom:1px dotted #f0ad4e'>의�</span> <span title='эталон: раму; похожесть: 0.00' style='background:#fff3cd;border-bottom:1px dotted #f0ad4e'>hurting.</span>"
+        }
+      }
+    }
+  },
+  {
+    "ts": 1758613191.818753,
+    "kind": "voice",
+    "payload": {
+      "recognized": "мама новара",
+      "score": 37.070014741164066,
+      "details": {
+        "lexical_accuracy": 43.3,
+        "recognition_reliability": 3.4,
+        "acoustic_cleanliness": 71.2,
+        "tempo": {
+          "wpm": 101.7,
+          "score": 29.2
+        },
+        "fluency": 60.0,
+        "weights": {
+          "lexical_accuracy": 0.35,
+          "recognition_reliability": 0.25,
+          "acoustic_cleanliness": 0.15,
+          "tempo": 0.15,
+          "fluency": 0.1
+        },
+        "raw": {
+          "rms": 0.0430925115942955,
+          "zcr": 0.09113008232526881,
+          "centroid": 2845.556030693335,
+          "centroid_norm": 0.0593
+        },
+        "alignment": {
+          "alignment": [
+            {
+              "ref": "Мама",
+              "hyp": "мама",
+              "sim": 1.0
+            },
+            {
+              "ref": "мыла",
+              "hyp": "новара",
+              "sim": 0.167
+            },
+            {
+              "ref": "раму",
+              "hyp": "",
+              "sim": 0.0
+            }
+          ],
+          "wer": 0.6666666666666666,
+          "char_sim": 0.5833333333333333,
+          "diff_html": "<span style='color:#2e7d32'>мама</span> <span title='эталон: мыла; похожесть: 0.17' style='background:#fff3cd;border-bottom:1px dotted #f0ad4e'>новара</span> <span title='удалено; эталон: раму' style='background:#ffe0e0;text-decoration:line-through'>раму</span>"
+        }
+      }
+    }
+  }
+]

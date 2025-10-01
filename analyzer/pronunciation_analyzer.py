@@ -1,14 +1,18 @@
 from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import Any
+
 import numpy as np
+
 from processors.alignment import expert_alignment
 
-class TranscriptionError(RuntimeError):
-    ...
 
-class AnalysisError(RuntimeError):
-    ...
+class TranscriptionError(RuntimeError): ...
+
+
+class AnalysisError(RuntimeError): ...
+
 
 @dataclass
 class WordItem:
@@ -17,31 +21,43 @@ class WordItem:
     end: float
     prob: float
 
+
 @dataclass
 class Transcript:
     text: str
     words: list[dict[str, Any]]
 
-class AdvancedPronunciationAnalyzer:
 
-    def __init__(self, model_size: str='base', language: str | None=None):
+class AdvancedPronunciationAnalyzer:
+    def __init__(self, model_size: str = 'base', language: str | None = None):
         self.model_size = model_size
         self.language = language
 
     def _load_model(self):
         try:
             import stable_whisper
+
             return stable_whisper.load_model(self.model_size)
         except Exception as error:
             raise TranscriptionError(f'Не удалось загрузить stable-whisper ({error})')
 
-    def transcribe(self, file):
+    def transcribe(
+        self,
+        file,
+        *,
+        temperature: float | None = None,
+        beam_size: int | None = None,
+        initial_prompt: str | None = None,
+    ):
         import os
         import pathlib
         import shutil
         import tempfile
+
         if shutil.which('ffmpeg') is None:
-            raise TranscriptionError('FFmpeg не найден в PATH. Установите FFmpeg и перезапустите терминал. Проверьте командой: ffmpeg -version')
+            raise TranscriptionError(
+                'FFmpeg не найден в PATH. Установите FFmpeg и перезапустите терминал. Проверьте командой: ffmpeg -version'
+            )
         model = self._load_model()
         tmp_path = None
         try:
@@ -59,16 +75,27 @@ class AdvancedPronunciationAnalyzer:
                     tmp.write(data)
                     tmp_path = tmp.name
                 audio_input = tmp_path
-            elif isinstance(file, (bytes, bytearray)):
+            elif isinstance(file, bytes | bytearray):
                 with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as tmp:
                     tmp.write(file)
                     tmp_path = tmp.name
                 audio_input = tmp_path
-            elif isinstance(file, (str, os.PathLike)):
+            elif isinstance(file, str | os.PathLike):
                 audio_input = str(file)
             else:
                 raise TranscriptionError('Неподдерживаемый тип входа для аудио.')
-            result = model.transcribe(audio_input, language=self.language, vad=True, word_timestamps=True)
+            kwargs: dict[str, Any] = {
+                'language': self.language,
+                'vad': True,
+                'word_timestamps': True,
+            }
+            if temperature is not None:
+                kwargs['temperature'] = float(temperature)
+            if beam_size is not None:
+                kwargs['beam_size'] = int(beam_size)
+            if initial_prompt:
+                kwargs['initial_prompt'] = str(initial_prompt)
+            result = model.transcribe(audio_input, **kwargs)
             if hasattr(result, 'to_dict'):
                 rd = result.to_dict()
             elif isinstance(result, dict):
@@ -81,7 +108,11 @@ class AdvancedPronunciationAnalyzer:
                 segments = result.segments
             words: list[dict[str, Any]] = []
             for seg in segments or []:
-                wlist = seg.get('words', []) if isinstance(seg, dict) else getattr(seg, 'words', []) or []
+                wlist = (
+                    seg.get('words', [])
+                    if isinstance(seg, dict)
+                    else getattr(seg, 'words', []) or []
+                )
                 for item_w in wlist:
                     if isinstance(item_w, dict):
                         word = (item_w.get('word') or item_w.get('text') or '').strip()
@@ -89,11 +120,17 @@ class AdvancedPronunciationAnalyzer:
                         end = float(item_w.get('end', 0.0))
                         prob = float(item_w.get('probability', item_w.get('prob', 0.0)))
                     else:
-                        word = (getattr(item_w, 'word', '') or getattr(item_w, 'text', '')).strip()
+                        word = (
+                            getattr(item_w, 'word', '') or getattr(item_w, 'text', '')
+                        ).strip()
                         start = float(getattr(item_w, 'start', 0.0))
                         end = float(getattr(item_w, 'end', 0.0))
-                        prob = float(getattr(item_w, 'probability', getattr(item_w, 'prob', 0.0)))
-                    words.append({'word': word, 'start': start, 'end': end, 'prob': prob})
+                        prob = float(
+                            getattr(item_w, 'probability', getattr(item_w, 'prob', 0.0))
+                        )
+                    words.append(
+                        {'word': word, 'start': start, 'end': end, 'prob': prob}
+                    )
             return Transcript(text=text, words=words)
         except Exception as error:
             raise TranscriptionError(str(error))
@@ -107,8 +144,16 @@ class AdvancedPronunciationAnalyzer:
     def _tempo_metrics(self, words: list[dict[str, Any]]) -> tuple[float | None, float]:
         if not words:
             return (None, 50.0)
-        starts = [float(item_w.get('start', 0.0)) for item_w in words if isinstance(item_w.get('start', 0.0), (int, float))]
-        ends = [float(item_w.get('end', 0.0)) for item_w in words if isinstance(item_w.get('end', 0.0), (int, float))]
+        starts = [
+            float(item_w.get('start', 0.0))
+            for item_w in words
+            if isinstance(item_w.get('start', 0.0), int | float)
+        ]
+        ends = [
+            float(item_w.get('end', 0.0))
+            for item_w in words
+            if isinstance(item_w.get('end', 0.0), int | float)
+        ]
         if not starts or not ends:
             return (None, 50.0)
         dur = max(1e-06, max(ends) - min(starts))
@@ -124,12 +169,19 @@ class AdvancedPronunciationAnalyzer:
             if good_hi < value_x < hard_hi:
                 return 100.0 * (hard_hi - value_x) / (hard_hi - good_hi)
             return 0.0
+
         return (float(wpm), float(band_score(wpm)))
 
     def _fluency_score(self, words: list[dict[str, Any]]) -> float:
         if not words or len(words) < 3:
             return 60.0
-        ws = sorted([(float(item_w.get('start', 0.0)), float(item_w.get('end', 0.0))) for item_w in words], key=lambda value_x: value_x[0])
+        ws = sorted(
+            [
+                (float(item_w.get('start', 0.0)), float(item_w.get('end', 0.0)))
+                for item_w in words
+            ],
+            key=lambda value_x: value_x[0],
+        )
         gaps = []
         for index in range(1, len(ws)):
             prev_end = ws[index - 1][1]
@@ -145,7 +197,9 @@ class AdvancedPronunciationAnalyzer:
         score = (1.0 - long_ratio_n) * 0.6 + (1.0 - std_n) * 0.4
         return float(max(0.0, min(1.0, score)) * 100.0)
 
-    def score(self, reference_text: str, transcript: Transcript, features: dict[str, Any]) -> tuple[float, dict[str, Any]]:
+    def score(
+        self, reference_text: str, transcript: Transcript, features: dict[str, Any]
+    ) -> tuple[float, dict[str, Any]]:
         if not transcript.text:
             raise AnalysisError('Пустая транскрипция')
         if reference_text.strip():
@@ -156,7 +210,11 @@ class AdvancedPronunciationAnalyzer:
         else:
             al = None
             lex_acc = 70.0
-        probs = [item_w['prob'] for item_w in transcript.words if isinstance(item_w.get('prob'), (int, float))]
+        probs = [
+            item_w['prob']
+            for item_w in transcript.words
+            if isinstance(item_w.get('prob'), int | float)
+        ]
         rec_rel = (float(np.mean(probs)) if probs else 0.5) * 100.0
         text = features.get('summary', {})
         rms = float(text.get('rms', 0.1))
@@ -175,8 +233,31 @@ class AdvancedPronunciationAnalyzer:
         wpm, tempo_score = self._tempo_metrics(transcript.words)
         fluency = self._fluency_score(transcript.words)
         from configs.thresholds import METRIC_WEIGHTS as W
-        overall = lex_acc * W['lexical_accuracy'] + rec_rel * W['recognition_reliability'] + acoustic_clean * W['acoustic_cleanliness'] + tempo_score * W['tempo'] + fluency * W['fluency']
-        details = {'lexical_accuracy': round(lex_acc, 1), 'recognition_reliability': round(rec_rel, 1), 'acoustic_cleanliness': round(acoustic_clean, 1), 'tempo': {'wpm': None if wpm is None else round(wpm, 1), 'score': round(tempo_score, 1)}, 'fluency': round(fluency, 1), 'weights': W, 'raw': {'rms': rms, 'zcr': zcr, 'centroid': cent, 'centroid_norm': round(cent_norm, 4)}}
+
+        overall = (
+            lex_acc * W['lexical_accuracy']
+            + rec_rel * W['recognition_reliability']
+            + acoustic_clean * W['acoustic_cleanliness']
+            + tempo_score * W['tempo']
+            + fluency * W['fluency']
+        )
+        details = {
+            'lexical_accuracy': round(lex_acc, 1),
+            'recognition_reliability': round(rec_rel, 1),
+            'acoustic_cleanliness': round(acoustic_clean, 1),
+            'tempo': {
+                'wpm': None if wpm is None else round(wpm, 1),
+                'score': round(tempo_score, 1),
+            },
+            'fluency': round(fluency, 1),
+            'weights': W,
+            'raw': {
+                'rms': rms,
+                'zcr': zcr,
+                'centroid': cent,
+                'centroid_norm': round(cent_norm, 4),
+            },
+        }
         if al is not None:
             details['alignment'] = al
         return (float(max(0.0, min(100.0, overall))), details)
