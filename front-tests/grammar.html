@@ -96,7 +96,7 @@
                         <div class="row g-3 align-items-end">
                             <div class="col-12 col-md-5">
                                 <label class="form-label">API URL</label>
-                                <input id="api" class="form-control" value="http://127.0.0.1:8001" />
+                                <input id="api" class="form-control" value="http://178.236.254.250:8000" />
                             </div>
                             <div class="col-12 col-md-3 d-grid">
                                 <button id="btnSend" class="btn btn-primary w-100">🚀 Отправить</button>
@@ -207,7 +207,7 @@
         async function sendToApi() {
             try {
                 setLoading(true);
-                const api = (apiEl && apiEl.value && apiEl.value.trim()) ? apiEl.value.trim() : 'http://127.0.0.1:8001';
+                const api = (apiEl && apiEl.value && apiEl.value.trim()) ? apiEl.value.trim() : 'http://178.236.254.250:8000';
                 const text = textEl.value || '';
                 const lesson = (lessonEl.value || '').split(',').map(x => x.trim()).filter(Boolean);
                 const payload = {
