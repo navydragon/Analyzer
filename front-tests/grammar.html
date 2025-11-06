@@ -61,7 +61,6 @@
     <section class="hero">
         <div class="container">
             <h1 class="h3 mb-0">Задание — Проверка грамматики (S-P-O)</h1>
-            <div class="text-white-50">Отправляет текст на эндпоинт <code>/v1/text/grammar</code></div>
         </div>
     </section>
 
@@ -69,15 +68,68 @@
         <div class="row g-4">
             <div class="col-12 col-lg-7">
                 <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-light"><strong>Задание</strong></div>
+                    <div class="card-body">
+                        <ul class="nav nav-tabs" id="assignmentTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="ru-tab" data-bs-toggle="tab"
+                                    data-bs-target="#tab-ru" type="button" role="tab" aria-controls="tab-ru"
+                                    aria-selected="true">Русский</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="en-tab" data-bs-toggle="tab" data-bs-target="#tab-en"
+                                    type="button" role="tab" aria-controls="tab-en"
+                                    aria-selected="false">English</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="zh-tab" data-bs-toggle="tab" data-bs-target="#tab-zh"
+                                    type="button" role="tab" aria-controls="tab-zh" aria-selected="false">中文</button>
+                            </li>
+                        </ul>
+                        <div class="tab-content pt-3" id="assignmentTabsContent">
+                            <div class="tab-pane fade show active" id="tab-ru" role="tabpanel" aria-labelledby="ru-tab">
+                                <p class="mb-2">Напишите короткий текст на тему «Моя семья» (3–6 предложений) и
+                                    отправьте его на проверку грамматики (S–P–O, падежи, согласование).</p>
+                                <ul class="mb-0">
+                                    <li>В поле «Текст для анализа» напишите свой текст.</li>
+                                    <li>При необходимости укажите леммы в «Материал урока».</li>
+                                    <li>Опционально включите «Разрешать эллипсис S» и «Нормализовать».</li>
+                                    <li>Нажмите <span class="badge bg-primary">Отправить</span> и изучите метрики и
+                                        рекомендации.</li>
+                                </ul>
+                            </div>
+                            <div class="tab-pane fade" id="tab-en" role="tabpanel" aria-labelledby="en-tab">
+                                <p class="mb-2">Write a short text on the topic “My family” (3–6 sentences) and submit
+                                    it for grammar checks (S–P–O, cases, agreement).</p>
+                                <ul class="mb-0">
+                                    <li>Enter your text in the “Text for analysis” field.</li>
+                                    <li>Optionally fill in lesson lemmas, toggle subject ellipsis and normalization.
+                                    </li>
+                                    <li>Click <span class="badge bg-primary">Submit</span> and review metrics and
+                                        suggestions.</li>
+                                </ul>
+                            </div>
+                            <div class="tab-pane fade" id="tab-zh" role="tabpanel" aria-labelledby="zh-tab">
+                                <p class="mb-2">请以“我的家庭”为题写一段短文（3–6句），并提交进行语法检查（主谓宾、格、配合）。</p>
+                                <ul class="mb-0">
+                                    <li>在“待分析文本”中输入你的内容。</li>
+                                    <li>可选：填写课程词元，启用主语省略与规范化。</li>
+                                    <li>点击 <span class="badge bg-primary">提交</span> 并查看指标与建议。</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card shadow-sm mb-4">
                     <div class="card-header bg-light"><strong>Ввод</strong></div>
                     <div class="card-body">
                         <div class="mb-3">
                             <label class="form-label">Текст для анализа</label>
                             <textarea id="text" class="form-control" rows="8"
-                                placeholder="Вставьте несколько предложений для проверки по S–P–O, падежам и согласованию.">Студент быстро читает интересную книгу. Потом читает статью.</textarea>
+                                placeholder="Вставьте несколько предложений на тему «Моя семья» для проверки по S–P–O, падежам и согласованию.">Это моя семья. У меня есть мама, папа и сестра. Мы часто ужинаем вместе дома. Моя мама готовит вкусный ужин, а папа моет посуду. По выходным мы гуляем в парке.</textarea>
                         </div>
 
-                        <div class="row g-3 align-items-end mb-3">
+                        <div class="row g-3 align-items-end mb-3 d-none">
                             <div class="col-12 col-md-6">
                                 <label class="form-label">Материал урока (леммы через запятую)</label>
                                 <input id="lesson" class="form-control"
@@ -94,10 +146,7 @@
                         </div>
 
                         <div class="row g-3 align-items-end">
-                            <div class="col-12 col-md-5">
-                                <label class="form-label">API URL</label>
-                                <input id="api" class="form-control" value="http://178.236.254.250:8000" />
-                            </div>
+                            <input id="api" type="hidden" value="http://178.236.254.250:8000" />
                             <div class="col-12 col-md-3 d-grid">
                                 <button id="btnSend" class="btn btn-primary w-100">🚀 Отправить</button>
                             </div>

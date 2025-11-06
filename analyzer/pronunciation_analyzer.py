@@ -1,11 +1,73 @@
 from __future__ import annotations
 
+import contextlib
+import os
+import sys
+import warnings
 from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
 
 from processors.alignment import expert_alignment
+
+# Подавляем предупреждения NNPACK и FP16 от PyTorch (неподдерживаемое оборудование)
+# Устанавливаем переменные окружения для подавления предупреждений из C++ кода
+os.environ.setdefault('PYTORCH_ENABLE_MPS_FALLBACK', '1')
+warnings.filterwarnings('ignore', message='.*NNPACK.*', category=UserWarning)
+warnings.filterwarnings(
+    'ignore', message='.*Could not initialize NNPACK.*', category=UserWarning
+)
+warnings.filterwarnings(
+    'ignore', message='.*FP16 is not supported on CPU.*', category=UserWarning
+)
+
+
+@contextlib.contextmanager
+def suppress_stderr_nnpack():
+    """Контекстный менеджер для подавления предупреждений NNPACK из stderr."""
+    original_stderr = sys.stderr
+    try:
+        # Создаем фильтр для stderr, который отфильтровывает сообщения NNPACK
+        class NNPACKFilter:
+            def __init__(self, original_stderr):
+                self.original_stderr = original_stderr
+                self.buffer = ''
+
+            def write(self, message):
+                # Накапливаем сообщения в буфере для многострочных предупреждений
+                self.buffer += message
+                # Проверяем, содержит ли буфер предупреждение NNPACK
+                if '\n' in self.buffer:
+                    lines = self.buffer.split('\n')
+                    self.buffer = lines[-1]  # Оставляем последнюю неполную строку
+                    for line in lines[:-1]:
+                        # Фильтруем строки с предупреждениями NNPACK
+                        if (
+                            'NNPACK' not in line
+                            and 'Could not initialize NNPACK' not in line
+                        ):
+                            self.original_stderr.write(line + '\n')
+                return len(message)
+
+            def flush(self):
+                # Обрабатываем оставшийся буфер
+                if self.buffer:
+                    if (
+                        'NNPACK' not in self.buffer
+                        and 'Could not initialize NNPACK' not in self.buffer
+                    ):
+                        self.original_stderr.write(self.buffer)
+                    self.buffer = ''
+                self.original_stderr.flush()
+
+            def __getattr__(self, name):
+                return getattr(self.original_stderr, name)
+
+        sys.stderr = NNPACKFilter(original_stderr)
+        yield
+    finally:
+        sys.stderr = original_stderr
 
 
 class TranscriptionError(RuntimeError): ...
@@ -32,14 +94,79 @@ class AdvancedPronunciationAnalyzer:
     def __init__(self, model_size: str = 'base', language: str | None = None):
         self.model_size = model_size
         self.language = language
+        self._model = None
+        self._model_lock = None
+        self._loading = False
 
     def _load_model(self):
-        try:
-            import stable_whisper
+        """Загружает модель Whisper с кэшированием и thread-safe инициализацией."""
+        import logging
+        import threading
 
-            return stable_whisper.load_model(self.model_size)
-        except Exception as error:
-            raise TranscriptionError(f'Не удалось загрузить stable-whisper ({error})')
+        logger = logging.getLogger(__name__)
+
+        # Если модель уже загружена, возвращаем её
+        if self._model is not None:
+            return self._model
+
+        # Инициализируем lock для thread-safety
+        if self._model_lock is None:
+            self._model_lock = threading.Lock()
+
+        # Thread-safe загрузка модели
+        with self._model_lock:
+            # Проверяем еще раз после получения lock (double-check pattern)
+            if self._model is not None:
+                return self._model
+
+            # Проверяем, не загружается ли уже модель
+            if self._loading:
+                # Ждем, пока другой поток загрузит модель
+                while self._loading and self._model is None:
+                    import time
+
+                    time.sleep(0.1)
+                if self._model is not None:
+                    return self._model
+                raise TranscriptionError(
+                    'Не удалось загрузить модель (таймаут ожидания)'
+                )
+
+            try:
+                self._loading = True
+                logger.info(
+                    f'Загрузка модели Whisper: {self.model_size} (это может занять время при первом запуске)...'
+                )
+
+                import stable_whisper
+
+                # Подавляем предупреждения при загрузке модели (включая stderr из C++ кода)
+                with warnings.catch_warnings():
+                    warnings.filterwarnings(
+                        'ignore', message='.*NNPACK.*', category=UserWarning
+                    )
+                    warnings.filterwarnings(
+                        'ignore',
+                        message='.*Could not initialize NNPACK.*',
+                        category=UserWarning,
+                    )
+                    warnings.filterwarnings(
+                        'ignore',
+                        message='.*FP16 is not supported on CPU.*',
+                        category=UserWarning,
+                    )
+                    with suppress_stderr_nnpack():
+                        self._model = stable_whisper.load_model(self.model_size)
+
+                logger.info(f'Модель Whisper {self.model_size} загружена успешно')
+                return self._model
+            except Exception as error:
+                logger.exception(f'Ошибка загрузки модели Whisper {self.model_size}')
+                raise TranscriptionError(
+                    f'Не удалось загрузить stable-whisper ({error})'
+                )
+            finally:
+                self._loading = False
 
     def transcribe(
         self,
@@ -49,16 +176,25 @@ class AdvancedPronunciationAnalyzer:
         beam_size: int | None = None,
         initial_prompt: str | None = None,
     ):
+        import logging
         import os
         import pathlib
         import shutil
         import tempfile
 
+        logger = logging.getLogger(__name__)
+
         if shutil.which('ffmpeg') is None:
             raise TranscriptionError(
                 'FFmpeg не найден в PATH. Установите FFmpeg и перезапустите терминал. Проверьте командой: ffmpeg -version'
             )
-        model = self._load_model()
+
+        # Загружаем модель (с кэшированием)
+        try:
+            model = self._load_model()
+        except Exception:
+            logger.exception('Ошибка при загрузке модели Whisper')
+            raise
         tmp_path = None
         try:
             if hasattr(file, 'getvalue'):
@@ -95,7 +231,23 @@ class AdvancedPronunciationAnalyzer:
                 kwargs['beam_size'] = int(beam_size)
             if initial_prompt:
                 kwargs['initial_prompt'] = str(initial_prompt)
-            result = model.transcribe(audio_input, **kwargs)
+            # Подавляем предупреждения во время транскрипции (включая stderr из C++ кода)
+            with warnings.catch_warnings():
+                warnings.filterwarnings(
+                    'ignore', message='.*NNPACK.*', category=UserWarning
+                )
+                warnings.filterwarnings(
+                    'ignore',
+                    message='.*Could not initialize NNPACK.*',
+                    category=UserWarning,
+                )
+                warnings.filterwarnings(
+                    'ignore',
+                    message='.*FP16 is not supported on CPU.*',
+                    category=UserWarning,
+                )
+                with suppress_stderr_nnpack():
+                    result = model.transcribe(audio_input, **kwargs)
             if hasattr(result, 'to_dict'):
                 rd = result.to_dict()
             elif isinstance(result, dict):

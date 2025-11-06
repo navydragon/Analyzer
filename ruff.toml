@@ -3,8 +3,10 @@ target-version = "py310"
 extend-exclude = [".venv", "build", "dist", ".github", "__pycache__"]
 
 [lint]
+# E501 - длина строки (игнорируем для совместимости)
+# C901 - когнитивная сложность (игнорируем, функции уже разбиты)
 select = ["E", "F", "I", "UP"]
-ignore = ["E501"]
+ignore = ["E501", "C901"]
 
 [format]
 quote-style = "single"

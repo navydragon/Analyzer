@@ -1,23 +1,78 @@
 from __future__ import annotations
 
+import contextlib
+import importlib.util
+import logging
+import os
 import re
+import sys
+import warnings
 from dataclasses import dataclass
 from typing import Any
 
-try:
-    import stanza
+# Подавляем предупреждения NNPACK и FP16 от PyTorch
+os.environ.setdefault('PYTORCH_ENABLE_MPS_FALLBACK', '1')
+warnings.filterwarnings('ignore', message='.*NNPACK.*', category=UserWarning)
+warnings.filterwarnings(
+    'ignore', message='.*Could not initialize NNPACK.*', category=UserWarning
+)
+warnings.filterwarnings(
+    'ignore', message='.*FP16 is not supported on CPU.*', category=UserWarning
+)
 
-    _STANZA = stanza.Pipeline(
-        lang='ru',
-        processors='tokenize,pos,lemma,depparse',
-        tokenize_no_ssplit=False,
-        use_gpu=False,
-    )
-except Exception as e:
-    _STANZA = None
-    _INIT_ERR = e
-else:
-    _INIT_ERR = None
+
+@contextlib.contextmanager
+def suppress_stderr_nnpack():
+    """Контекстный менеджер для подавления предупреждений NNPACK из stderr."""
+    original_stderr = sys.stderr
+    try:
+
+        class NNPACKFilter:
+            def __init__(self, original_stderr):
+                self.original_stderr = original_stderr
+                self.buffer = ''
+
+            def write(self, message):
+                self.buffer += message
+                if '\n' in self.buffer:
+                    lines = self.buffer.split('\n')
+                    self.buffer = lines[-1]
+                    for line in lines[:-1]:
+                        if (
+                            'NNPACK' not in line
+                            and 'Could not initialize NNPACK' not in line
+                        ):
+                            self.original_stderr.write(line + '\n')
+                return len(message)
+
+            def flush(self):
+                if self.buffer:
+                    if (
+                        'NNPACK' not in self.buffer
+                        and 'Could not initialize NNPACK' not in self.buffer
+                    ):
+                        self.original_stderr.write(self.buffer)
+                    self.buffer = ''
+                self.original_stderr.flush()
+
+            def __getattr__(self, name):
+                return getattr(self.original_stderr, name)
+
+        sys.stderr = NNPACKFilter(original_stderr)
+        yield
+    finally:
+        sys.stderr = original_stderr
+
+
+# Lazy loading: инициализация Stanza происходит только при первом вызове
+_STANZA = None
+_INIT_ERR = None
+_STANZA_LOCK = None
+
+# Проверяем доступность stanza без импорта
+_STANZA_AVAILABLE = importlib.util.find_spec('stanza') is not None
+if not _STANZA_AVAILABLE:
+    _INIT_ERR = ImportError('stanza не установлен')
 GRAMMAR_WEIGHTS = {
     'spo_presence': 0.4,
     'subject_case': 0.1,
@@ -77,10 +132,62 @@ class SentenceReport:
 
 
 def _ensure_ready():
-    if _STANZA is None:
-        raise RuntimeError(
-            f'Stanza не инициализирована. Установите/скачайте модель русского: {repr(_INIT_ERR)}'
-        )
+    """Инициализирует Stanza Pipeline при первом вызове (lazy loading)."""
+    global _STANZA, _INIT_ERR, _STANZA_LOCK
+
+    if _STANZA is not None:
+        return  # Уже инициализирована
+
+    if not _STANZA_AVAILABLE:
+        raise RuntimeError('Stanza не установлен. Установите: pip install stanza')
+
+    # Инициализируем lock для thread-safety
+    if _STANZA_LOCK is None:
+        import threading
+
+        _STANZA_LOCK = threading.Lock()
+
+    # Thread-safe инициализация
+    with _STANZA_LOCK:
+        # Проверяем еще раз после получения lock (double-check pattern)
+        if _STANZA is not None:
+            return
+
+        try:
+            import stanza
+
+            logger = logging.getLogger(__name__)
+            logger.info(
+                'Инициализация Stanza Pipeline (это может занять 15-20 секунд)...'
+            )
+
+            with warnings.catch_warnings():
+                warnings.filterwarnings(
+                    'ignore', message='.*NNPACK.*', category=UserWarning
+                )
+                warnings.filterwarnings(
+                    'ignore',
+                    message='.*Could not initialize NNPACK.*',
+                    category=UserWarning,
+                )
+                warnings.filterwarnings(
+                    'ignore',
+                    message='.*FP16 is not supported on CPU.*',
+                    category=UserWarning,
+                )
+                with suppress_stderr_nnpack():
+                    _STANZA = stanza.Pipeline(
+                        lang='ru',
+                        processors='tokenize,pos,lemma,depparse',
+                        tokenize_no_ssplit=False,
+                        use_gpu=False,
+                    )
+            logger.info('Stanza Pipeline инициализирован успешно')
+            _INIT_ERR = None
+        except Exception as e:
+            _STANZA = None
+            _INIT_ERR = e
+            raise RuntimeError(f'Не удалось инициализировать Stanza Pipeline: {e}')
 
 
 def _sent_split(text: str) -> list[str]:

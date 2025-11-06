@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 import time
+import warnings
 from typing import Any
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
@@ -10,6 +11,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
+# Подавляем предупреждения NNPACK и FP16 от PyTorch (неподдерживаемое оборудование)
+# Устанавливаем переменные окружения для подавления предупреждений из C++ кода
+os.environ.setdefault('PYTORCH_ENABLE_MPS_FALLBACK', '1')
+warnings.filterwarnings('ignore', message='.*NNPACK.*', category=UserWarning)
+warnings.filterwarnings(
+    'ignore', message='.*Could not initialize NNPACK.*', category=UserWarning
+)
+warnings.filterwarnings(
+    'ignore', message='.*FP16 is not supported on CPU.*', category=UserWarning
+)
+
+# ruff: noqa: E402 - импорты после установки переменных окружения намеренно
 from analyzer.pronunciation_analyzer import (
     AdvancedPronunciationAnalyzer,
     AnalysisError,
@@ -38,26 +51,46 @@ app.add_middleware(
 
 
 class _AnalyzerHolder:
-    _instance: AdvancedPronunciationAnalyzer | None = None
+    """Хранилище экземпляров анализатора с кэшированием по model_size и language."""
+
+    _instances: dict[tuple[str, str | None], AdvancedPronunciationAnalyzer] = {}
     _ffmpeg_checked: bool = False
+    _lock = None
 
     @classmethod
     def get(
         cls, model_size: str | None = None, language: str | None = None
     ) -> AdvancedPronunciationAnalyzer:
+        import threading
+
         if not cls._ffmpeg_checked:
             import shutil
 
             if shutil.which('ffmpeg') is None:
                 raise HTTPException(status_code=503, detail='FFmpeg не найден в PATH')
             cls._ffmpeg_checked = True
-        if cls._instance is None:
-            size = model_size or os.getenv('MODEL_SIZE', 'base')
-            lang = language or os.getenv('LANGUAGE') or None
-            cls._instance = AdvancedPronunciationAnalyzer(
-                model_size=size, language=lang
-            )
-        return cls._instance
+
+        # Инициализируем lock для thread-safety
+        if cls._lock is None:
+            cls._lock = threading.Lock()
+
+        # Определяем параметры модели
+        size = model_size or os.getenv('MODEL_SIZE', 'base')
+        lang = language or os.getenv('LANGUAGE') or None
+
+        # Создаем ключ для кэша
+        cache_key = (size, lang)
+
+        # Thread-safe получение/создание экземпляра
+        with cls._lock:
+            if cache_key not in cls._instances:
+                logger.info(
+                    f'Создание нового анализатора: model_size={size}, language={lang}'
+                )
+                cls._instances[cache_key] = AdvancedPronunciationAnalyzer(
+                    model_size=size, language=lang
+                )
+            return cls._instances[cache_key]
 
 
 @app.get('/v1/health')
@@ -109,8 +142,125 @@ async def analyze_text_grammar(req: GrammarRequest):
         raise HTTPException(status_code=500, detail=msg)
 
 
+async def _convert_to_wav(tmp_path: str, suffix: str) -> tuple[str, str | None]:  # noqa: C901
+    """Конвертирует аудиофайл в WAV формат, если необходимо."""
+    import asyncio
+    import subprocess as _sp
+    import tempfile as _tempfile
+
+    if suffix.lower() == '.wav':
+        return tmp_path, None
+
+    # tempfile синхронный, но это нормально для создания временного файла
+    with _tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as wtmp:
+        wav_path = wtmp.name
+    cmd = [
+        'ffmpeg',
+        '-y',
+        '-i',
+        tmp_path,
+        '-ac',
+        '1',
+        '-ar',
+        '16000',
+        wav_path,
+    ]
+    logger.debug('ffmpeg cmd: %s', ' '.join(cmd))
+    try:
+        # subprocess.run в asyncio.to_thread для неблокирующего выполнения
+        await asyncio.to_thread(
+            _sp.run,
+            cmd,
+            check=True,
+            stdout=_sp.DEVNULL,
+            stderr=_sp.DEVNULL,
+        )
+        return wav_path, wav_path
+    except Exception as conv_err:
+        logger.exception('ffmpeg convert failed')
+        raise HTTPException(
+            status_code=500, detail=f'ffmpeg convert failed: {conv_err}'
+        )
+
+
+async def _process_audio_file(  # noqa: C901
+    content: bytes,
+    filename: str | None,
+    analyzer: AdvancedPronunciationAnalyzer,
+    temperature: float | None,
+    beam_size: int | None,
+    initial_prompt: str | None,
+) -> tuple[Any, dict[str, Any], str, str | None]:
+    """Обрабатывает аудиофайл: сохраняет, конвертирует, транскрибирует и извлекает признаки."""
+    import os as _os
+    import pathlib as _pathlib
+    import tempfile as _tempfile
+
+    suffix = _pathlib.Path(filename or 'audio.webm').suffix or '.webm'
+    tmp_path = None
+    wav_path = None
+    try:
+        # tempfile синхронный, но это нормально для записи файла
+        with _tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+            tmp.write(content)
+            tmp_path = tmp.name
+        logger.debug('temp audio saved: %s', tmp_path)
+
+        use_path, wav_path = await _convert_to_wav(tmp_path, suffix)
+
+        t0 = time.time()
+        try:
+            logger.debug('Начало транскрипции: %s', use_path)
+            tr = analyzer.transcribe(
+                use_path,
+                temperature=temperature,
+                beam_size=beam_size,
+                initial_prompt=initial_prompt,
+            )
+            logger.debug(
+                'Транскрипция завершена: %s',
+                tr.text[:100] if tr.text else '(пусто)',
+            )
+        except Exception as transcribe_err:
+            logger.exception('Ошибка при транскрипции: %s', transcribe_err)
+            raise
+        t1 = time.time()
+
+        try:
+            feats = extract_basic_features(use_path)
+            if not feats or not isinstance(feats, dict):
+                logger.warning('Признаки не извлечены или имеют неверный формат')
+                feats = {}
+        except Exception as feats_err:
+            logger.exception('Ошибка при извлечении признаков: %s', feats_err)
+            feats = {}
+
+        t2 = time.time()
+        logger.info(
+            'timings_ms transcribe=%.0f features=%.0f total=%.0f',
+            (t1 - t0) * 1000.0,
+            (t2 - t1) * 1000.0,
+            (time.time() - t0) * 1000.0,
+        )
+        return tr, feats, tmp_path, wav_path
+    except Exception:
+        # Очистка при ошибке
+        _CLEANUP_MSG = 'temp cleanup failed: %s'
+        if tmp_path:
+            try:
+                _os.remove(tmp_path)
+            except Exception:
+                logger.debug(_CLEANUP_MSG, tmp_path)
+        if wav_path:
+            try:
+                _os.remove(wav_path)
+            except Exception:
+                logger.debug(_CLEANUP_MSG, wav_path)
+        raise
+
+
 @app.post('/v1/voice/analyze')
-async def analyze_voice(
+async def analyze_voice(  # noqa: C901
     file: UploadFile = File(..., description='Аудиофайл wav/mp3/m4a'),
     reference: str = Form('', description='Эталонный текст (опционально)'),
     model_size: str | None = Form(None, description='Размер модели Whisper'),
@@ -121,7 +271,6 @@ async def analyze_voice(
     beam_size: int | None = Form(None, description='Размер бима'),
     initial_prompt: str | None = Form(None, description='Подсказка для модели'),
 ):
-    req_started = time.time()
     try:
         try:
             max_mb = float(os.getenv('MAX_FILE_MB', '50'))
@@ -145,77 +294,32 @@ async def analyze_voice(
             )
         analyzer = _AnalyzerHolder.get(model_size=model_size, language=language)
 
-        # Сохраняем во временный файл с исходным суффиксом
         import os as _os
-        import pathlib as _pathlib
-        import tempfile as _tempfile
 
-        suffix = _pathlib.Path(file.filename or 'audio.webm').suffix or '.webm'
+        _CLEANUP_MSG = 'temp cleanup failed: %s'
         tmp_path = None
         wav_path = None
         try:
-            with _tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-                tmp.write(content)
-                tmp_path = tmp.name
-            logger.debug('temp audio saved: %s', tmp_path)
-
-            # Конвертируем в WAV для стабильной обработки webm/opus/mp3
-            use_path = tmp_path
-            if suffix.lower() != '.wav':
-                import subprocess as _sp
-
-                with _tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as wtmp:
-                    wav_path = wtmp.name
-                cmd = [
-                    'ffmpeg',
-                    '-y',
-                    '-i',
-                    tmp_path,
-                    '-ac',
-                    '1',
-                    '-ar',
-                    '16000',
-                    wav_path,
-                ]
-                logger.debug('ffmpeg cmd: %s', ' '.join(cmd))
-                try:
-                    _sp.run(cmd, check=True, stdout=_sp.DEVNULL, stderr=_sp.DEVNULL)
-                    use_path = wav_path
-                except Exception as conv_err:
-                    logger.exception('ffmpeg convert failed')
-                    raise HTTPException(
-                        status_code=500, detail=f'ffmpeg convert failed: {conv_err}'
-                    )
-
-            t0 = time.time()
-            tr = analyzer.transcribe(
-                use_path,
-                temperature=temperature,
-                beam_size=beam_size,
-                initial_prompt=initial_prompt,
-            )
-            t1 = time.time()
-            feats = extract_basic_features(use_path)
-            t2 = time.time()
-            logger.info(
-                'timings_ms transcribe=%.0f features=%.0f total=%.0f',
-                (t1 - t0) * 1000.0,
-                (t2 - t1) * 1000.0,
-                (time.time() - req_started) * 1000.0,
+            tr, feats, tmp_path, wav_path = await _process_audio_file(
+                content,
+                file.filename,
+                analyzer,
+                temperature,
+                beam_size,
+                initial_prompt,
             )
         finally:
             if tmp_path:
                 try:
                     _os.remove(tmp_path)
                 except Exception:
-                    logger.debug('temp cleanup failed: %s', tmp_path)
-                    pass
+                    logger.debug(_CLEANUP_MSG, tmp_path)
             if wav_path:
                 try:
                     _os.remove(wav_path)
                 except Exception:
-                    logger.debug('temp cleanup failed: %s', wav_path)
-                    pass
+                    logger.debug(_CLEANUP_MSG, wav_path)
+
         score, details = analyzer.score(reference or '', tr, feats)
         payload = {
             'score': float(score),
@@ -256,4 +360,13 @@ def version() -> dict[str, Any]:
 if __name__ == '__main__':
     import uvicorn
 
-    uvicorn.run('main:app', host='127.0.0.1', port=8000, reload=True, app_dir='.')
+    # Отключаем reload в продакшене для предотвращения перезапуска во время загрузки моделей
+    # Reload может убить процесс во время инициализации Stanza (15+ секунд)
+    enable_reload = os.getenv('UVICORN_RELOAD', 'false').lower() in ('true', '1', 'yes')
+    uvicorn.run(
+        'main:app',
+        host='127.0.0.1',
+        port=8000,
+        reload=enable_reload,
+        app_dir='.',
+    )
