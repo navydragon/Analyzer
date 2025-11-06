@@ -54,11 +54,16 @@ class _NNPACKStderrFilter:
 
     def _should_filter(self, line):
         """Проверяет, нужно ли отфильтровать строку."""
+        if not line:
+            return False
         line_lower = line.lower()
+        # Фильтруем различные варианты предупреждений NNPACK
         return (
             'nnpack' in line_lower
             or 'could not initialize nnpack' in line_lower
             or 'fp16 is not supported on cpu' in line_lower
+            or 'nnpack.cpp' in line_lower
+            or 'unsupported hardware' in line_lower
         )
 
     def __getattr__(self, name):
