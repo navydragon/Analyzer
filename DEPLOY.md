@@ -2,17 +2,88 @@
 
 ## После пулла изменений
 
-### 1. Проверка переменных окружения
+### 1. Проверка конфигурации systemd service
 
-Убедитесь, что `UVICORN_RELOAD` не установлен или установлен в `false`:
+#### Найти и проверить service файл:
 
 ```bash
-# Проверить текущее значение
-echo $UVICORN_RELOAD
+# Найти service файл (обычно в /etc/systemd/system/ или /lib/systemd/system/)
+sudo systemctl status analyzer-api | grep "Loaded:"
+# или
+ls -la /etc/systemd/system/analyzer-api.service
+ls -la /lib/systemd/system/analyzer-api.service
 
-# Если установлен в true, отключить (для продакшена)
-unset UVICORN_RELOAD
-# или в systemd service файле убедиться, что переменная не установлена
+# Просмотреть содержимое service файла
+sudo cat /etc/systemd/system/analyzer-api.service
+# или
+sudo systemctl cat analyzer-api
+```
+
+#### Проверить команду запуска:
+
+В service файле должна быть команда запуска **БЕЗ** `--reload` (uvicorn не поддерживает `--no-reload`):
+
+**Правильно:**
+```ini
+ExecStart=/path/to/venv/bin/uvicorn api.main:app --host 0.0.0.0 --port 8000
+```
+
+**Неправильно:**
+```ini
+# НЕ используйте --reload в продакшене
+ExecStart=/path/to/venv/bin/uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+
+# НЕ используйте --no-reload (эта опция не существует)
+ExecStart=/path/to/venv/bin/uvicorn api.main:app --host 0.0.0.0 --port 8000 --no-reload
+```
+
+**Важно:** uvicorn не поддерживает опцию `--no-reload`. Просто не указывайте `--reload` в команде запуска.
+
+#### Проверить переменные окружения:
+
+В секции `[Service]` проверьте переменные окружения:
+
+```bash
+# Просмотреть все переменные окружения сервиса
+sudo systemctl show analyzer-api | grep Environment
+```
+
+В service файле должно быть:
+```ini
+[Service]
+Environment="UVICORN_RELOAD=false"
+# или переменная вообще не должна быть установлена
+```
+
+**Если переменная `UVICORN_RELOAD=true` или `--reload` в команде:**
+1. Отредактируйте service файл: `sudo nano /etc/systemd/system/analyzer-api.service`
+2. Уберите `--reload` из команды `ExecStart` (просто не указывайте эту опцию)
+3. Уберите `--no-reload` если он есть (эта опция не существует в uvicorn)
+4. Установите `Environment="UVICORN_RELOAD=false"` или удалите эту строку
+5. Перезагрузите конфигурацию: `sudo systemctl daemon-reload`
+6. Перезапустите сервис: `sudo systemctl restart analyzer-api`
+
+#### Проверить текущие переменные окружения процесса:
+
+```bash
+# Найти PID процесса
+sudo systemctl status analyzer-api | grep "Main PID"
+
+# Проверить переменные окружения запущенного процесса
+sudo cat /proc/$(systemctl show analyzer-api -p MainPID --value)/environ | tr '\0' '\n' | grep UVICORN
+```
+
+#### Проверить логи при старте:
+
+```bash
+# Просмотреть логи при старте (должны быть сообщения о PID и переменных окружения)
+sudo journalctl -u analyzer-api -n 50 --no-pager | grep -E "PID|UVICORN_RELOAD|Запуск приложения"
+```
+
+В логах должно быть:
+```
+PID процесса: <число>
+UVICORN_RELOAD=false
 ```
 
 ### 2. Очистка кэша Python (опционально, но рекомендуется)
@@ -29,13 +100,16 @@ find . -type f -name "*.pyc" -delete 2>/dev/null || true
 
 ```bash
 # Проверить статус
-sudo systemctl status your-service-name
+sudo systemctl status analyzer-api
 
 # Перезапустить сервис
-sudo systemctl restart your-service-name
+sudo systemctl restart analyzer-api
 
 # Проверить логи
-sudo journalctl -u your-service-name -f
+sudo journalctl -u analyzer-api -f
+
+# Проверить логи с момента последнего запуска
+sudo journalctl -u analyzer-api --since "5 minutes ago" --no-pager
 ```
 
 #### Если используется supervisor:
@@ -84,7 +158,13 @@ curl http://localhost:8000/v1/version
 
 ```bash
 # systemd
-sudo journalctl -u your-service-name -n 100 --no-pager
+sudo journalctl -u analyzer-api -n 100 --no-pager
+
+# Проверить логи на наличие сообщений о кэше
+sudo journalctl -u analyzer-api -n 200 --no-pager | grep -E "кэш|cache|Анализатор|analyzer"
+
+# Проверить, не перезапускается ли процесс (PID должен быть постоянным)
+sudo journalctl -u analyzer-api --since "1 hour ago" --no-pager | grep "PID процесса"
 
 # или если логи в файле
 tail -n 100 /path/to/logs/app.log
@@ -136,21 +216,63 @@ curl -X POST http://localhost:8000/v1/voice/analyze \
 # Вернуться к предыдущему коммиту
 git log --oneline -10  # найти нужный коммит
 git checkout <commit-hash>
-sudo systemctl restart your-service-name
+sudo systemctl restart analyzer-api
 ```
 
 ## Дополнительная настройка (опционально)
 
 ### Установка переменных окружения в systemd service
 
-Если используете systemd, добавьте в service файл:
+Если используете systemd, добавьте в service файл `/etc/systemd/system/analyzer-api.service`:
 
 ```ini
 [Service]
 Environment="PYTORCH_ENABLE_MPS_FALLBACK=1"
 Environment="UVICORN_RELOAD=false"
+Environment="MODEL_SIZE=small"
+Environment="LANGUAGE=ru"
 # Другие переменные окружения
 ```
+
+После изменения service файла:
+```bash
+# Перезагрузить конфигурацию systemd
+sudo systemctl daemon-reload
+
+# Перезапустить сервис
+sudo systemctl restart analyzer-api
+
+# Проверить, что изменения применились
+sudo systemctl show analyzer-api | grep Environment
+```
+
+### Пример правильного systemd service файла
+
+```ini
+[Unit]
+Description=Analyzer API Service
+After=network.target
+
+[Service]
+Type=simple
+User=your-user
+WorkingDirectory=/path/to/Analyzer
+Environment="PYTORCH_ENABLE_MPS_FALLBACK=1"
+Environment="UVICORN_RELOAD=false"
+Environment="MODEL_SIZE=small"
+Environment="LANGUAGE=ru"
+ExecStart=/path/to/venv/bin/uvicorn api.main:app --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+```
+
+**Важно:**
+- В `ExecStart` НЕ должно быть `--reload`!
+- НЕ используйте `--no-reload` (эта опция не существует в uvicorn)
+- Просто не указывайте `--reload` в команде запуска
 
 ### Мониторинг использования памяти
 

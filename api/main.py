@@ -2,14 +2,10 @@ from __future__ import annotations
 
 import logging
 import os
+import sys
 import time
 import warnings
 from typing import Any
-
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel
 
 # Подавляем предупреждения NNPACK и FP16 от PyTorch (неподдерживаемое оборудование)
 # Устанавливаем переменные окружения для подавления предупреждений из C++ кода
@@ -21,6 +17,62 @@ warnings.filterwarnings(
 warnings.filterwarnings(
     'ignore', message='.*FP16 is not supported on CPU.*', category=UserWarning
 )
+
+# Глобальный фильтр stderr для подавления предупреждений NNPACK из C++ кода
+_original_stderr = sys.stderr
+
+
+class _NNPACKStderrFilter:
+    """Фильтр для подавления предупреждений NNPACK из stderr."""
+
+    def __init__(self, original_stderr):
+        self.original_stderr = original_stderr
+        self.buffer = ''
+
+    def write(self, message):
+        """Фильтрует сообщения, содержащие NNPACK."""
+        if not message:
+            return
+        # Накапливаем сообщения в буфере
+        self.buffer += message
+        # Обрабатываем полные строки
+        if '\n' in self.buffer:
+            lines = self.buffer.split('\n')
+            self.buffer = lines[-1]  # Оставляем последнюю неполную строку
+            for line in lines[:-1]:
+                if line and not self._should_filter(line):
+                    self.original_stderr.write(line + '\n')
+        return len(message)
+
+    def flush(self):
+        """Обрабатывает оставшийся буфер."""
+        if self.buffer:
+            if not self._should_filter(self.buffer):
+                self.original_stderr.write(self.buffer)
+            self.buffer = ''
+        self.original_stderr.flush()
+
+    def _should_filter(self, line):
+        """Проверяет, нужно ли отфильтровать строку."""
+        line_lower = line.lower()
+        return (
+            'nnpack' in line_lower
+            or 'could not initialize nnpack' in line_lower
+            or 'fp16 is not supported on cpu' in line_lower
+        )
+
+    def __getattr__(self, name):
+        """Проксирует остальные атрибуты к оригинальному stderr."""
+        return getattr(self.original_stderr, name)
+
+
+# Применяем глобальный фильтр stderr
+sys.stderr = _NNPACKStderrFilter(_original_stderr)
+
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 
 # ruff: noqa: E402 - импорты после установки переменных окружения намеренно
 from analyzer.pronunciation_analyzer import (
@@ -55,11 +107,17 @@ async def startup_event():
     """Инициализация при старте приложения."""
     import os as _os
 
+    logger.info('=' * 60)
     logger.info('Запуск приложения Analyzer REST API')
+    logger.info(f'PID процесса: {_os.getpid()}')
     logger.info(f'MODEL_SIZE={_os.getenv("MODEL_SIZE", "base")}')
     logger.info(f'LANGUAGE={_os.getenv("LANGUAGE", "не указан")}')
     logger.info(f'UVICORN_RELOAD={_os.getenv("UVICORN_RELOAD", "false")}')
     logger.info(f'PRELOAD_MODEL={_os.getenv("PRELOAD_MODEL", "false")}')
+    logger.info(
+        f'_AnalyzerHolder._instances id при старте: {id(_AnalyzerHolder._instances)}'
+    )
+    logger.info('=' * 60)
 
     # Предзагрузка модели по умолчанию (если включено)
     if _os.getenv('PRELOAD_MODEL', 'false').lower() in ('true', '1', 'yes'):
@@ -108,13 +166,23 @@ class _AnalyzerHolder:
         cache_key = (size, lang)
 
         # Thread-safe получение/создание экземпляра
+        logger.info(
+            f'_AnalyzerHolder.get: cache_key={cache_key}, '
+            f'_instances keys={list(cls._instances.keys())}, '
+            f'_instances id={id(cls._instances)}'
+        )
         with cls._lock:
             if cache_key not in cls._instances:
                 logger.info(
-                    f'Создание нового анализатора: model_size={size}, language={lang}'
+                    f'Создание нового анализатора: model_size={size}, language={lang}, '
+                    f'cache_key={cache_key}'
                 )
                 analyzer = AdvancedPronunciationAnalyzer(model_size=size, language=lang)
                 cls._instances[cache_key] = analyzer
+                logger.info(
+                    f'Анализатор создан и добавлен в кэш. '
+                    f'Теперь в кэше: {list(cls._instances.keys())}'
+                )
                 # Предзагрузка модели при создании анализатора (если включено)
                 if os.getenv('PRELOAD_MODEL', 'false').lower() in ('true', '1', 'yes'):
                     logger.info(
@@ -128,8 +196,9 @@ class _AnalyzerHolder:
                             f'Не удалось предзагрузить модель: {e} (будет загружена при первом запросе)'
                         )
             else:
-                logger.debug(
-                    f'Использование существующего анализатора: model_size={size}, language={lang}'
+                logger.info(
+                    f'Использование существующего анализатора: model_size={size}, language={lang}, '
+                    f'cache_key={cache_key}'
                 )
             return cls._instances[cache_key]
 
@@ -401,11 +470,20 @@ def version() -> dict[str, Any]:
 @app.get('/v1/cache/status')
 def cache_status() -> dict[str, Any]:
     """Проверка состояния кэша анализаторов."""
+    import os as _os
     import threading
 
     # Инициализируем lock, если он еще не инициализирован
     if _AnalyzerHolder._lock is None:
         _AnalyzerHolder._lock = threading.Lock()
+
+    # Логируем состояние кэша для диагностики
+    logger.info(
+        f'Проверка кэша: PID={_os.getpid()}, '
+        f'_instances id={id(_AnalyzerHolder._instances)}, '
+        f'keys={list(_AnalyzerHolder._instances.keys())}, '
+        f'lock={_AnalyzerHolder._lock}'
+    )
 
     with _AnalyzerHolder._lock:
         cached_keys = list(_AnalyzerHolder._instances.keys())
@@ -424,6 +502,12 @@ def cache_status() -> dict[str, Any]:
     return {
         'cached_analyzers': len(cached_keys),
         'analyzers': cache_info,
+        'debug': {
+            'pid': _os.getpid(),
+            'instances_dict_id': id(_AnalyzerHolder._instances),
+            'lock_initialized': _AnalyzerHolder._lock is not None,
+            'cache_keys': [f'{k[0]}_{k[1]}' for k in cached_keys],
+        },
     }
 
 
