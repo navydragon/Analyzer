@@ -171,10 +171,13 @@ class _AnalyzerHolder:
         cache_key = (size, lang)
 
         # Thread-safe получение/создание экземпляра
+        import os as _os
+
         logger.info(
-            f'_AnalyzerHolder.get: cache_key={cache_key}, '
+            f'_AnalyzerHolder.get: PID={_os.getpid()}, cache_key={cache_key}, '
             f'_instances keys={list(cls._instances.keys())}, '
-            f'_instances id={id(cls._instances)}'
+            f'_instances id={id(cls._instances)}, '
+            f'_instances len={len(cls._instances)}'
         )
         with cls._lock:
             if cache_key not in cls._instances:
