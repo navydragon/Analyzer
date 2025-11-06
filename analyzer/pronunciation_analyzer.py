@@ -107,6 +107,9 @@ class AdvancedPronunciationAnalyzer:
 
         # Если модель уже загружена, возвращаем её
         if self._model is not None:
+            logger.debug(
+                f'Модель Whisper {self.model_size} уже загружена, используется из кэша'
+            )
             return self._model
 
         # Инициализируем lock для thread-safety
@@ -117,6 +120,9 @@ class AdvancedPronunciationAnalyzer:
         with self._model_lock:
             # Проверяем еще раз после получения lock (double-check pattern)
             if self._model is not None:
+                logger.debug(
+                    f'Модель Whisper {self.model_size} уже загружена (double-check), используется из кэша'
+                )
                 return self._model
 
             # Проверяем, не загружается ли уже модель

@@ -50,6 +50,32 @@ app.add_middleware(
 )
 
 
+@app.on_event('startup')
+async def startup_event():
+    """Инициализация при старте приложения."""
+    import os as _os
+
+    logger.info('Запуск приложения Analyzer REST API')
+    logger.info(f'MODEL_SIZE={_os.getenv("MODEL_SIZE", "base")}')
+    logger.info(f'LANGUAGE={_os.getenv("LANGUAGE", "не указан")}')
+    logger.info(f'UVICORN_RELOAD={_os.getenv("UVICORN_RELOAD", "false")}')
+    logger.info(f'PRELOAD_MODEL={_os.getenv("PRELOAD_MODEL", "false")}')
+
+    # Предзагрузка модели по умолчанию (если включено)
+    if _os.getenv('PRELOAD_MODEL', 'false').lower() in ('true', '1', 'yes'):
+        logger.info('Предзагрузка модели при старте приложения...')
+        try:
+            default_size = _os.getenv('MODEL_SIZE', 'base')
+            default_lang = _os.getenv('LANGUAGE') or None
+            # Получаем анализатор, который автоматически предзагрузит модель
+            _AnalyzerHolder.get(model_size=default_size, language=default_lang)
+            logger.info('Модель предзагружена при старте приложения')
+        except Exception as e:
+            logger.warning(
+                f'Не удалось предзагрузить модель при старте: {e} (будет загружена при первом запросе)'
+            )
+
+
 class _AnalyzerHolder:
     """Хранилище экземпляров анализатора с кэшированием по model_size и language."""
 
@@ -87,8 +113,23 @@ class _AnalyzerHolder:
                 logger.info(
                     f'Создание нового анализатора: model_size={size}, language={lang}'
                 )
-                cls._instances[cache_key] = AdvancedPronunciationAnalyzer(
-                    model_size=size, language=lang
+                analyzer = AdvancedPronunciationAnalyzer(model_size=size, language=lang)
+                cls._instances[cache_key] = analyzer
+                # Предзагрузка модели при создании анализатора (если включено)
+                if os.getenv('PRELOAD_MODEL', 'false').lower() in ('true', '1', 'yes'):
+                    logger.info(
+                        f'Предзагрузка модели Whisper: model_size={size}, language={lang}'
+                    )
+                    try:
+                        analyzer._load_model()
+                        logger.info(f'Модель Whisper {size} предзагружена успешно')
+                    except Exception as e:
+                        logger.warning(
+                            f'Не удалось предзагрузить модель: {e} (будет загружена при первом запросе)'
+                        )
+            else:
+                logger.debug(
+                    f'Использование существующего анализатора: model_size={size}, language={lang}'
                 )
             return cls._instances[cache_key]
 
@@ -354,6 +395,35 @@ def version() -> dict[str, Any]:
             'MODEL_SIZE': os.getenv('MODEL_SIZE', 'base'),
             'LANGUAGE': os.getenv('LANGUAGE', ''),
         },
+    }
+
+
+@app.get('/v1/cache/status')
+def cache_status() -> dict[str, Any]:
+    """Проверка состояния кэша анализаторов."""
+    import threading
+
+    # Инициализируем lock, если он еще не инициализирован
+    if _AnalyzerHolder._lock is None:
+        _AnalyzerHolder._lock = threading.Lock()
+
+    with _AnalyzerHolder._lock:
+        cached_keys = list(_AnalyzerHolder._instances.keys())
+        cache_info = []
+        for key in cached_keys:
+            size, lang = key
+            analyzer = _AnalyzerHolder._instances[key]
+            model_loaded = analyzer._model is not None
+            cache_info.append(
+                {
+                    'model_size': size,
+                    'language': lang,
+                    'model_loaded': model_loaded,
+                }
+            )
+    return {
+        'cached_analyzers': len(cached_keys),
+        'analyzers': cache_info,
     }
 
 
