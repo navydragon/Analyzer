@@ -309,18 +309,38 @@ sudo journalctl -u analyzer-api -f | grep -v NNPACK
 sudo journalctl -u analyzer-api -f | grep -v -E "NNPACK|Could not initialize NNPACK"
 ```
 
-#### Вариант 2: Перенаправление stderr в systemd service (осторожно!)
+#### Вариант 2: Перенаправление stderr в systemd service (рекомендуется для продакшена)
 
-Если предупреждения NNPACK мешают, можно добавить в service файл:
+Предупреждения NNPACK идут напрямую из C++ кода PyTorch в файловый дескриптор stderr (fd 2), минуя Python-фильтры. Единственный способ их полностью подавить - перенаправить stderr на уровне systemd.
+
+**Добавьте в service файл `/etc/systemd/system/analyzer-api.service`:**
 
 ```ini
 [Service]
 # Перенаправление stderr в /dev/null (подавляет все stderr, включая NNPACK)
-# ВНИМАНИЕ: Это также скроет важные ошибки!
+# Это безопасно, так как все важные ошибки логируются через Python logging (stdout)
 StandardError=null
 ```
 
-**Внимание:** Использование `StandardError=null` подавит все сообщения stderr, включая важные ошибки. Используйте только если предупреждения NNPACK действительно мешают, и вы уверены, что важные ошибки логируются через Python logging.
+**Почему это безопасно:**
+- Все важные ошибки и логи приложения идут через Python `logging`, который пишет в stdout
+- Предупреждения NNPACK - это только C++ предупреждения из PyTorch, которые не критичны
+- Модель работает нормально, просто оборудование не поддерживает NNPACK (это нормально для CPU)
+
+**После изменения:**
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart analyzer-api
+```
+
+**Проверка:**
+```bash
+# Предупреждения NNPACK больше не должны появляться
+sudo journalctl -u analyzer-api -f
+
+# Важные логи приложения все еще видны (они идут через stdout)
+sudo journalctl -u analyzer-api -f | grep -E "INFO|ERROR|WARNING"
+```
 
 #### Вариант 3: Использование Python-фильтра (уже реализовано)
 

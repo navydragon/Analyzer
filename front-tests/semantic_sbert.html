@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="ru">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Аудиторный тренажёр — Семантическая близость</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <style>
+        body {
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+            background: #f8fafc;
+        }
+
+        .badge-task {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: #fff;
+            padding: 0.2rem 0.6rem;
+            border-radius: 999px;
+            font-size: 0.75rem;
+        }
+
+        .card-hint {
+            border-left: 4px solid #22c55e;
+        }
+
+        .card-feedback {
+            border-left: 4px solid #6366f1;
+        }
+
+        .hero {
+            background: linear-gradient(135deg, #8b5cf6 0%, #0ea5e9 100%);
+            color: white;
+            padding: 2rem 0;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 2px 8px rgba(14, 165, 233, 0.25);
+        }
+
+        #log {
+            white-space: pre-wrap;
+            background: #0b1220;
+            color: #d2ffd2;
+            padding: 12px 14px;
+            border-radius: 0.5rem;
+        }
+
+        .tag {
+            display: inline-block;
+            padding: 0.125rem 0.5rem;
+            border-radius: 10px;
+            background: #eef2ff;
+            color: #312e81;
+            font-size: 0.75rem;
+            margin-right: 0.25rem;
+        }
+
+        .score {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin: 0.5rem 0 1rem;
+        }
+
+        .error {
+            color: #b00020;
+        }
+    </style>
+    <link rel="icon" href="data:,">
+    <meta name="color-scheme" content="light dark" />
+</head>
+
+<body>
+    <section class="hero">
+        <div class="container">
+            <span class="badge-task mb-2">Задание ученика</span>
+            <h1 class="h3 mb-1">Семантическая близость ответа</h1>
+            <p class="mb-0">Подготовь связный ответ и проверь, насколько он совпадает с эталоном по смыслу.</p>
+        </div>
+    </section>
+
+    <main class="container mb-5">
+        <div class="row g-4">
+            <div class="col-12 col-lg-7">
+                <div class="card shadow-sm mb-4 card-hint">
+                    <div class="card-header bg-light"><strong>Инструкция</strong></div>
+                    <div class="card-body">
+                        <p class="mb-3">Внимательно прочитай критерии или эталон, а затем напиши свой ответ.</p>
+                        <ul class="mb-0">
+                            <li>Сосредоточься на ключевых идеях и логичной структуре.</li>
+                            <li>Проверь, что используешь важные детали из эталона.</li>
+                            <li>После отправки изучи обратную связь и доработай ответ при необходимости.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-light"><strong>Твой ответ</strong></div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label" for="text">Что ты хочешь сказать?</label>
+                            <textarea id="text" class="form-control" rows="6"
+                                placeholder="Например: Моя семья состоит из четырёх человек..."></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label" for="reference">Что от тебя ожидают (эталон/критерии)</label>
+                            <textarea id="reference" class="form-control" rows="6"
+                                placeholder="Перечисли пункты или вставь образец, который нужно повторить по смыслу."></textarea>
+                        </div>
+                        <div class="form-check form-switch mb-4">
+                            <input class="form-check-input" type="checkbox" id="normalize">
+                            <label class="form-check-label" for="normalize">Привести текст к одинаковому виду (регистр,
+                                знаки)</label>
+                        </div>
+                        <div class="row g-3 align-items-end">
+                            <div class="col-12 col-md-3 d-grid">
+                                <button id="btnSend" class="btn btn-primary w-100">🚀 Проверить</button>
+                            </div>
+                            <div class="col-12 col-md-5 small text-muted" id="hint"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12 col-lg-5">
+                <div class="card shadow-sm mb-4 card-feedback">
+                    <div class="card-header bg-light"><strong>Обратная связь</strong></div>
+                    <div class="card-body">
+                        <div id="resultEmpty" class="text-muted">Напиши свой ответ и нажми «Проверить», чтобы увидеть
+                            оценку.</div>
+                        <div id="result" class="d-none">
+                            <div class="mb-2">
+                                <span class="tag">Модель</span>
+                                <span id="provider" class="fw-semibold">—</span>
+                            </div>
+                            <div class="score">Твой балл: <span id="score">—</span> / 100</div>
+                            <div class="mb-3">
+                                <span class="tag">Сходство (косинус)</span>
+                                <span id="cosine" class="fw-semibold"></span>
+                            </div>
+                            <h6 class="text-uppercase text-muted small mb-2">Твой текст (нормализованный)</h6>
+                            <pre id="normText" class="bg-light p-2 rounded mb-3"></pre>
+                            <h6 class="text-uppercase text-muted small mb-2">Эталон (нормализованный)</h6>
+                            <pre id="normRef" class="bg-light p-2 rounded mb-3"></pre>
+                            <h6 class="text-uppercase text-muted small mb-2">Пояснение от модели</h6>
+                            <pre id="details" class="bg-light p-2 rounded mb-0"></pre>
+                        </div>
+                        <div id="errorBox" class="error d-none"></div>
+                    </div>
+                </div>
+
+                <div class="card shadow-sm">
+                    <div class="card-header bg-light"><strong>Журнал попыток</strong></div>
+                    <div class="card-body">
+                        <div id="log" class="small text-muted">Здесь появляются сведения об отправленных запросах.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
+        crossorigin="anonymous"></script>
+
+    <script>
+        const API_URL = 'http://127.0.0.1:8000';
+        const textEl = document.getElementById('text');
+        const refEl = document.getElementById('reference');
+        const normalizeEl = document.getElementById('normalize');
+        const btnSend = document.getElementById('btnSend');
+        const hint = document.getElementById('hint');
+        const log = document.getElementById('log');
+
+        const resultCard = document.getElementById('result');
+        const resultEmpty = document.getElementById('resultEmpty');
+        const errorBox = document.getElementById('errorBox');
+        const scoreEl = document.getElementById('score');
+        const cosineEl = document.getElementById('cosine');
+        const providerEl = document.getElementById('provider');
+        const normTextEl = document.getElementById('normText');
+        const normRefEl = document.getElementById('normRef');
+        const detailsEl = document.getElementById('details');
+
+        function logln(msg) { log.textContent += msg + '\n'; }
+        function setLoading(state) {
+            btnSend.disabled = state;
+            hint.textContent = state ? '⏳ Обработка...' : '';
+        }
+
+        async function sendToApi() {
+            try {
+                setLoading(true);
+                errorBox.classList.add('d-none');
+                resultCard.classList.add('d-none');
+                resultEmpty.classList.remove('d-none');
+
+                const payload = {
+                    text: textEl.value || '',
+                    reference: refEl.value || '',
+                    normalize: !!normalizeEl.checked,
+                };
+
+                logln('POST ' + API_URL + '/v1/text/semantics');
+                const res = await fetch(API_URL + '/v1/text/semantics', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    const detail = data.detail || JSON.stringify(data);
+                    errorBox.textContent = `HTTP ${res.status}: ${detail}`;
+                    errorBox.classList.remove('d-none');
+                    return;
+                }
+
+                const score = Number.isFinite(data.score) ? data.score.toFixed(1) : data.score ?? '—';
+                const cosine = (data.details && Number.isFinite(data.details.cosine))
+                    ? data.details.cosine.toFixed(4)
+                    : (data.details?.cosine ?? '—');
+
+                scoreEl.textContent = score;
+                cosineEl.textContent = cosine;
+                providerEl.textContent = data.provider || '—';
+                normTextEl.textContent = data.normalized_text || '—';
+                normRefEl.textContent = data.normalized_reference || '—';
+                detailsEl.textContent = data.details
+                    ? JSON.stringify(data.details, null, 2)
+                    : '—';
+
+                resultEmpty.classList.add('d-none');
+                resultCard.classList.remove('d-none');
+            } catch (error) {
+                errorBox.textContent = `Ошибка запроса: ${error}`;
+                errorBox.classList.remove('d-none');
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        btnSend.addEventListener('click', (event) => {
+            event.preventDefault();
+            sendToApi();
+        });
+    </script>
+</body>
+
+</html>

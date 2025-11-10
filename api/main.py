@@ -86,6 +86,7 @@ from analyzer.pronunciation_analyzer import (
     TranscriptionError,
 )
 from processors.audio_processor import extract_basic_features
+from semantic.evaluator import SemanticEvaluator
 from semantic.grammar_nn import analyze_text_nn
 from text import normalize_text
 
@@ -226,6 +227,20 @@ class GrammarRequest(BaseModel):
     normalize: bool = True
 
 
+class SemanticRequest(BaseModel):
+    text: str
+    reference: str
+    normalize: bool = False
+
+
+class SemanticResponse(BaseModel):
+    provider: str
+    score: float
+    normalized_text: str
+    normalized_reference: str
+    details: dict[str, Any] | None = None
+
+
 @app.post('/v1/text/grammar')
 async def analyze_text_grammar(req: GrammarRequest):
     try:
@@ -258,6 +273,59 @@ async def analyze_text_grammar(req: GrammarRequest):
         if _DEBUG:
             return JSONResponse({'error': str(error)}, status_code=500)
         raise HTTPException(status_code=500, detail=msg)
+
+
+@app.post('/v1/text/semantics', response_model=SemanticResponse)
+async def analyze_text_semantics(req: SemanticRequest):
+    text_in = (req.text or '').strip()
+    ref_in = (req.reference or '').strip()
+    if not text_in:
+        raise HTTPException(status_code=400, detail='Пустой текст для оценки')
+    if not ref_in:
+        raise HTTPException(status_code=400, detail='Пустой эталон/критерии')
+
+    norm_text = normalize_text(text_in) if req.normalize else text_in
+    norm_ref = normalize_text(ref_in) if req.normalize else ref_in
+    if not norm_text.strip():
+        raise HTTPException(status_code=400, detail='Пустой текст после нормализации')
+    if not norm_ref.strip():
+        raise HTTPException(status_code=400, detail='Пустой эталон после нормализации')
+
+    try:
+        evaluator = SemanticEvaluator(provider='local-sbert')
+        result = evaluator.evaluate(norm_text, reference=norm_ref)
+    except Exception as error:
+        logger.exception('Semantic evaluator initialization failed')
+        raise HTTPException(
+            status_code=500,
+            detail=f'Ошибка инициализации семантического анализатора: {error}',
+        )
+
+    details = result.details or {}
+    if isinstance(details, dict) and details.get('error'):
+        err_msg = str(details['error']).lower()
+        if 'reference_empty' in err_msg:
+            raise HTTPException(
+                status_code=400,
+                detail='Пустой эталон: заполните поле reference.',
+            )
+        if 'sentence-transformers' in err_msg or 'sentence_transformers' in err_msg:
+            raise HTTPException(
+                status_code=503,
+                detail='Модель sentence-transformers недоступна: установите пакет `sentence-transformers`.',
+            )
+        raise HTTPException(
+            status_code=503,
+            detail=f'Семантический провайдер недоступен: {details["error"]}',
+        )
+
+    return SemanticResponse(
+        provider=result.provider,
+        score=float(result.score),
+        normalized_text=norm_text,
+        normalized_reference=norm_ref,
+        details=details if details else None,
+    )
 
 
 async def _convert_to_wav(tmp_path: str, suffix: str) -> tuple[str, str | None]:  # noqa: C901
@@ -328,7 +396,27 @@ async def _process_audio_file(  # noqa: C901
 
         t0 = time.time()
         try:
-            logger.debug('Начало транскрипции: %s', use_path)
+            # Логируем параметры транскрипции для диагностики
+            logger.info(
+                'Начало транскрипции: path=%s, temperature=%s, beam_size=%s, initial_prompt=%s',
+                use_path,
+                temperature,
+                beam_size,
+                initial_prompt[:50] if initial_prompt else None,
+            )
+
+            # Проверяем размер аудиофайла
+            import os as _os_check
+
+            file_size = (
+                _os_check.path.getsize(use_path)
+                if _os_check.path.exists(use_path)
+                else 0
+            )
+            logger.info(
+                'Размер аудиофайла: %d bytes (%.2f KB)', file_size, file_size / 1024.0
+            )
+
             tr = analyzer.transcribe(
                 use_path,
                 temperature=temperature,
@@ -343,6 +431,17 @@ async def _process_audio_file(  # noqa: C901
             logger.exception('Ошибка при транскрипции: %s', transcribe_err)
             raise
         t1 = time.time()
+
+        # Логируем скорость транскрипции
+        transcribe_time = (t1 - t0) * 1000.0
+        logger.info(
+            'Транскрипция завершена: время=%.0fms, файл=%.2fKB, скорость=%.2fKB/s',
+            transcribe_time,
+            file_size / 1024.0,
+            (file_size / 1024.0) / (transcribe_time / 1000.0)
+            if transcribe_time > 0
+            else 0,
+        )
 
         try:
             feats = extract_basic_features(use_path)
