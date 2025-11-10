@@ -48,7 +48,7 @@ class SemanticEvaluator:
                 [text, ref], convert_to_tensor=True, normalize_embeddings=True
             )
             cos = float(util.cos_sim(emb[0], emb[1]).item())
-            score = max(0.0, min(100.0, (cos + 1.0) * 50.0))
+            score = max(0.0, min(100.0, cos * 100.0))
             return SemanticResult(
                 provider='local-sbert',
                 score=score,
